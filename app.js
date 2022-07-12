@@ -19,6 +19,44 @@ app.get('/', (req, res) => {
 })
 
 
+// Router Private
+app.get('/user/:id', checkToken, async (req, res) => {
+    const id = req.params.id;
+
+    //check user if exists
+    const user = await User.findById(id, '-password');
+    console.log(user, "aa")
+    if(!user){
+
+        return res.status(404).json({ msg : "Usuario não encontrado!"})
+    } else {
+
+        res.status(200).json({ user })
+    }
+
+})
+
+function checkToken(req, res, next){
+    const authHeader = req.headers['authorization']
+    const token = authHeader && authHeader.split(' ')[1]
+
+    if(!token){
+        return res.status(401).json({ msg: "Acesso negado!"})
+    }
+
+    try {
+
+        const secret = process.env.SECRET
+
+        jwt.verify(token, secret)
+
+        next()
+
+    } catch(error){
+        res.status(400).json({msg: "Token inválido"})
+    }
+}
+
 //Register User
 app.post('/auth/register', async(req, res) => {
     const { name, email, password, confirmPassword } = req.body;
@@ -70,6 +108,51 @@ app.post('/auth/register', async(req, res) => {
     }
 
 })
+
+// Router Login
+app.post("/auth/login", async (req, res) => {
+    const { email, password } = req.body;
+
+    if(!email){
+        return res.status(422).json({ msg: 'O email é obrigatório'})
+    }
+    if(!password){
+        return res.status(422).json({ msg: 'O senha é obrigatório'})
+    }
+    const user = await User.findOne({ email: email })
+
+    if(!user){
+            res.status(404).json({ mmsg: "Usuario não encontrado"})
+    }
+
+    const checkPassword = await bcrypt.compare(password, user.password);
+
+    if(!checkPassword){
+        res.status(422).json({ msg: "Senha invalida"})
+    }
+
+    try {
+        const secret = process.env.SECRET
+
+        const token = jwt.sign({
+            id: user,
+
+        }, 
+            secret,
+        )
+
+        res.status(200).json({ msg: "Autenticação realizada com sucesso!", token})
+    } catch {
+       
+
+        res.status(500).json({
+            msg: "Aconteceu um erro no servidor, tente novamente mais tarde!"
+        })
+    }
+
+})
+
+
 
 mongoose.connect(`mongodb+srv://${dbUser}:${dbPassword}@cluster0.wkgoqrv.mongodb.net/?retryWrites=true&w=majority`)
         .then(() => {
